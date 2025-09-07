@@ -56,5 +56,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "Freshman_Raising.sln"
+    "dotnet.defaultSolution": "The_Office.sln"
 }
