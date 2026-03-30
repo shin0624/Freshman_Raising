@@ -173,7 +173,7 @@ public class EndingUIController : MonoBehaviour
 
 //-----------------------------------
 
-    private void LoadCurrentBossType()//현재 선택된 상사 타입 로드하는 메서드.
+    private void LoadCurrentBossType()//현재 선택된 상사 타입을 로드하는 메서드.
     {
         currentBossType = PlayerPrefs.GetString("SelectedBoss", "male_boss");
         Debug.Log($"[EndingUIController] 현재 상사 타입 : {currentBossType}");
@@ -219,15 +219,8 @@ public class EndingUIController : MonoBehaviour
 
         AdMobManager.Instance?.ShowIfReady();//250817. 엔딩 후 다시하기 버튼 클릭 시 전면 광고 출력
 
-        SetButtonsInteractable(false);//중복 클릭 방지
         AudioManager.Instance.PlaySFX(AudioEnums.SFXType.ButtonClick);
-
-        DotweenAnimations.FadeOutEndingPanel(EndingCanvasPanel, 0.5f, () =>
-        {
-            FindAnyObjectByType<TrueEndingTrigger>()?.OnClickReplayOrNextBoss();//TrueEndingTrigger.cs의 트리거 리셋 메서드 호출. 데이터 초기화 및 트리거 변수 리셋.
-            Debug.Log("[EndingUIController] 다시시작 버튼 클릭");
-            SceneManager.LoadScene("StartScene");//씬 로드를 콜백 내에서 호출
-        });
+        StartCoroutine(HandleSceneTransition("StartScene", isReplay: true));// 250907 업데이트 : 엔딩 컷신에서 버튼 작동 불가 오류 수정(상호작용 비활 -> 재활 타이밍 이슈 해결)
     }
 
     private void OnCollectionButtonClicked()//컬렉션 보기 버튼 클릭 시
@@ -237,18 +230,12 @@ public class EndingUIController : MonoBehaviour
 
         AdMobManager.Instance?.ShowIfReady();//250817. 엔딩 후 컬렉션 보기 버튼 클릭 시 전면 광고 출력
 
-        SetButtonsInteractable(false);//중복 클릭 방지
         AudioManager.Instance.PlaySFX(AudioEnums.SFXType.ButtonClick);
-        Debug.Log("[EndingUIController] 컬렉션 버튼 클릭 - 사원수첩 씬으로 이동");
-    
-        DotweenAnimations.FadeOutEndingPanel(EndingCanvasPanel, 0.5f, () =>
-        {
-            //진입 출처 기록 : 엔딩 이후 컬렉션 보기 버튼으로 CollectionScene으로 이동하였을 때.
-            PlayerPrefs.SetString("CollectionEntrySource", "FromEndingPanel");//250810. CollectionScene 진입점 2개(EndingPanel-CollectionButton / MainScene-FoyerPanel) 별로 각각 CollectionScene 진입 후 뒤로가기 버튼 클릭 시 다른 결과가 도출되어야 하므로, PlayerPrefs에서 진입 출처를 기록하고, 이를 바탕으로 CollectionScene에서의 다음 행동을 연결.
-            PlayerPrefs.Save();//플레이어프렙스에 저장.
-            FindAnyObjectByType<TrueEndingTrigger>()?.OnClickReplayOrNextBoss();// 엔딩을 본 이후에는 기존 데이터가 모두 초기화되고 컬렉션 데이터만 유지되어야 하므로 여기서도 호출.
-            SceneManager.LoadScene("CollectionScene"); // 사원수첩 씬으로 이동
-        });
+        //Debug.Log("[EndingUIController] 컬렉션 버튼 클릭 - 사원수첩 씬으로 이동");
+        PlayerPrefs.SetString("CollectionEntrySource", "FromEndingPanel");//컬렉션 씬에서 뒤로가기 시 엔딩 씬으로 돌아오지 않도록 진입 경로 설정.
+        PlayerPrefs.Save();
+        StartCoroutine(HandleSceneTransition("CollectionScene", true));
+
     }
 
     private void SetSprite(Sprite titleSprite, Sprite imageSprite)
@@ -272,16 +259,26 @@ public class EndingUIController : MonoBehaviour
         }
     }
 
-    private void SetButtonsInteractable(bool value)
+    private IEnumerator HandleSceneTransition(string targetScene, bool isReplay = false)//250907 업데이트 : 엔딩 컷신에서 버튼 작동 불가 오류 수정(상호작용 비활 -> 재활 타이밍 이슈 해결)
     {
-        if (endingButtons != null)
+        // 엔딩 버튼 동작을 별도의 코루틴으로 분리해서 적절한 타이밍에 실행되도록 함
+        var canvasGroup = EndingCanvasPanel;
+        if (canvasGroup != null)
         {
-            for (int i = 0; i < endingButtons.Count; i++)
+            DotweenAnimations.FadeOutEndingPanel(canvasGroup, 0.5f);
+            yield return new WaitForSeconds(0.5f);
+        }
+        if (isReplay)
+        {
+            var trueEndingTrigger = FindAnyObjectByType<TrueEndingTrigger>();
+            if (trueEndingTrigger != null)
             {
-                if (endingButtons[i] != null) endingButtons[i].interactable = value;
+                trueEndingTrigger.OnClickReplayOrNextBoss();//씬 전환 전에 데이터 처리가 모두 완료되도록 순서 조정
             }
         }
+        SceneManager.LoadScene(targetScene);//페이드 아웃이 완료된 후 씬 전환 로직 실행
     }
+
 
 
     void OnDisable()

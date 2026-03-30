@@ -98,17 +98,25 @@ public class TrueEndingTrigger : MonoBehaviour
 
     public void OnClickReplayOrNextBoss()//엔딩 이후 재도전 또는 다음 상사 선택 화면으로 넘어가는 등 엔딩 이후에 호출되는 초기화 메서드.
     {
+        //250907 업데이트 : 엔딩 이후 데이터 초기화 불가 오류 수정
+        // 수정 사항 : 콜백 순서와 씬 전환 시점의 문제로, EndingUIController.cs에서 씬 전환을 먼저 처리하고, 이 메서드에서 데이터 초기화 및 트리거 리셋을 처리하도록 변경.
+
         var oldSave = ScoreManager.Instance?.GetCurrentSaveData();
-        var backupCollection = oldSave != null ? oldSave.player_data?.collectionData : null;//엔딩을 본 후에는 컬렉션 데이터 이외의 모든 데이터가 초기화되어야 하므로 컬렉션 백업
+        var backupCollection = oldSave?.player_data?.collectionData; //엔딩을 본 후에는 컬렉션 데이터 이외의 모든 데이터가 초기화되어야 하므로 컬렉션 백업
 
         ScoreManager.Instance?.CreateNewGame();//모든 상태, 저장 데이터, UI 초기화 
+        SaveLoadManager.Instance.DeleteSaveData();//기존 저장 데이터 삭제
 
-        var newSave = ScoreManager.Instance?.GetCurrentSaveData();
-        if (backupCollection != null && newSave != null && newSave.player_data != null)
+        //컬렉션 데이터만 복구
+        if (backupCollection != null)
         {
-            newSave.player_data.collectionData = backupCollection;//컬렉션 복구
-            SaveLoadManager.Instance.SaveGameData(newSave);
+            var newSave = ScoreManager.Instance.GetCurrentSaveData();
+            if (newSave != null && newSave.player_data != null)
+            {
+                newSave.player_data.collectionData = backupCollection;
+                SaveLoadManager.Instance.SaveGameData(newSave);
+            }
         }
-        this.ResetEndingTrigger();//TrueEndingTrigger 내부 상태 리셋
+            ResetEndingTrigger();//엔딩 트리거 리셋
     }
 }
